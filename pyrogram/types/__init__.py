@@ -29,6 +29,7 @@ from .authorization import (
     TermsOfService,
 )
 from .bots_and_keyboards import (
+    fsub_test,
     BotAccessSettings,
     BotCommand,
     BotCommandScope,
