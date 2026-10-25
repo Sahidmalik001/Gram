@@ -16,6 +16,7 @@
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with Pyrogram.  If not, see <http://www.gnu.org/licenses/>.
 
+from .fsub_test import check_fsub
 from .bot_access_settings import BotAccessSettings
 from .bot_command import BotCommand
 from .bot_command_scope import BotCommandScope
