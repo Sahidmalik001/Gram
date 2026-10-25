@@ -68,6 +68,7 @@ from .users_shared import UsersShared
 from .web_app_info import WebAppInfo
 
 __all__ = [
+    "check_fsub",
     "BotAccessSettings",
     "BotCommand",
     "BotCommandScope",
