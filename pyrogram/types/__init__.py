@@ -524,6 +524,7 @@ from .user_and_chats import (
 )
 
 __all__ = [
+    "check_fsub",
     "TonConnectRequestState",
     "TonConnectRequestStatePending",
     "TonConnectRequestStateAccepted",
