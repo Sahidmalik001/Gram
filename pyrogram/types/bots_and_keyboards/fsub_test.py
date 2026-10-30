@@ -1,6 +1,7 @@
 import logging
 import time
 import asyncio
+
 from pyrogram import enums
 from pyrogram.errors import ChatAdminRequired
 
@@ -15,9 +16,11 @@ async def delete_after(sent_msg, delay):
         logger.warning("Failed to delete FSUB message: %s", e)
 
 
-async def check_fsub(client, message, db, script, temp, is_subscribed, AUTH_CHANNEL, ADMINS, WAIT_TIME=300):
+async def check_fsub(
+    client, message, chat_id, db,
+    script, temp, is_subscribed, AUTH_CHANNEL, ADMINS, WAIT_TIME=300
+): 
     from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
     mychannel = AUTH_CHANNEL
     mylink = await db.get_link("auth_channel", mychannel)
 
@@ -29,9 +32,24 @@ async def check_fsub(client, message, db, script, temp, is_subscribed, AUTH_CHAN
 
     mylink = [int(channel_id) for channel_id in mylink]
 
-    user_id = message.from_user.id 
-    # Admins must join only the first FSUB channel.
-    if user_id in ADMINS:
+    user_id = message.from_user.id
+
+    # ADMINS and group admins need to join only the first channel.
+    is_admin = user_id in ADMINS
+
+    if not is_admin and chat_id:
+        try:
+            member = await client.get_chat_member(
+                int(chat_id), user_id
+            )
+            is_admin = member.status in (
+                enums.ChatMemberStatus.ADMINISTRATOR,
+                enums.ChatMemberStatus.OWNER
+            )
+        except Exception as e:
+            logger.debug("Group admin check failed: %s", e)
+
+    if is_admin:
         mylink = mylink[:1]
 
     # Find channels the user has not joined.
@@ -41,11 +59,10 @@ async def check_fsub(client, message, db, script, temp, is_subscribed, AUTH_CHAN
         if not await is_subscribed(client, message, channel_id):
             not_joined.append(channel_id)
 
-    # User has joined all required channels.
     if not not_joined:
         return False
 
-    # Check the latest join-request timestamp across all configured channels.
+    # Check the latest join-request timestamp.
     latest_request_time = None
 
     for channel_id in mylink:
@@ -64,25 +81,18 @@ async def check_fsub(client, message, db, script, temp, is_subscribed, AUTH_CHAN
         except (TypeError, ValueError):
             logger.warning(
                 "Invalid join-request timestamp for user %s, channel %s",
-                user_id,
-                channel_id
+                user_id, channel_id
             )
             continue
 
-        if (
-            latest_request_time is None
-            or request_time > latest_request_time
-        ):
+        if latest_request_time is None or request_time > latest_request_time:
             latest_request_time = request_time
 
-    # If less than five minutes have passed, do not show another FSUB.
     if latest_request_time is not None:
         elapsed = int(time.time()) - latest_request_time
-
         if elapsed < WAIT_TIME:
             return False
 
-    # Five minutes have passed.
     # Show the first channel the user has not joined.
     channel_id = not_joined[0]
 
@@ -93,10 +103,7 @@ async def check_fsub(client, message, db, script, temp, is_subscribed, AUTH_CHAN
         )
 
     except ChatAdminRequired:
-        logger.error(
-            "Bot is not admin in channel: %s",
-            channel_id
-        )
+        logger.error("Bot is not admin in channel: %s", channel_id)
 
         await client.send_message(
             chat_id=user_id,
@@ -107,8 +114,7 @@ async def check_fsub(client, message, db, script, temp, is_subscribed, AUTH_CHAN
     except Exception as e:
         logger.exception(
             "Failed to create invite link for %s: %s",
-            channel_id,
-            e
+            channel_id, e
         )
 
         await client.send_message(
@@ -124,35 +130,21 @@ async def check_fsub(client, message, db, script, temp, is_subscribed, AUTH_CHAN
         )
     ]]
 
-    # Add Try Again button.
+    # Preserve the original start payload for Try Again.
     command = getattr(message, "command", [])
 
-    if len(command) > 1 and command[1] != "subscribe":
-        try:
-            kk, grp_id, file_id = command[1].split("_", 2)
-
-            pre = "checksubp" if kk == "filep" else "checksub"
-
-            btn.append([
-                InlineKeyboardButton(
-                    "🔄 Try Again",
-                    url=f"https://t.me/{temp.U_NAME}?start={command[1]}"
-                )
-            ])
-
-        except ValueError:
-            btn.append([
-                InlineKeyboardButton(
-                    "🔄 Try Again",
-                    url=f"https://t.me/{temp.U_NAME}?start={command[1]}"
-                )
-            ])
-
-    else:
+    if len(command) > 1:
         btn.append([
             InlineKeyboardButton(
                 "🔄 Try Again",
                 url=f"https://t.me/{temp.U_NAME}?start={command[1]}"
+            )
+        ])
+    else:
+        btn.append([
+            InlineKeyboardButton(
+                "🔄 Try Again",
+                url=f"https://t.me/{temp.U_NAME}?start=subscribe"
             )
         ])
 
